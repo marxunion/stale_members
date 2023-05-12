@@ -7,7 +7,7 @@ In order to use the script you need to:
 3. Find out the ID of your chat
 4. Install git and python and even pipenv (if you wish, you can use any other dependency management if you need)
 
-## Register for the
+## Register new app
 
 Go to https://my.telegram.org/ and create new application.
 
