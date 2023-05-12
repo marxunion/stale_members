@@ -1,3 +1,16 @@
+# Purpose
+
+This script analyzes the chat or group in Telegram and returns you a list of **recently inactive** chat members. By **recently inactive** we mean:
+1. no messages in the chat
+2. no reactions
+3. no votes in the polls
+4. user is not an admin
+in last X days (where X is configurable).
+
+# How it works
+
+The script uses `telethon` library to access the telegram API. It gets the members of the chat, excludes admins, gets last messages in the chat and checks excludes members who sent at least one message, voted on the polls or reacted on the messages with emojis.
+
 # Setup
 
 In order to use the script you need to:
