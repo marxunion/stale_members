@@ -1,0 +1,11 @@
+# This is a template of the config file
+
+# Taken from app configs in telegram developer dashboard
+app_id = ""
+app_hash = ""
+
+# The chat ID can be found in web.telegram.org - it is "-100{ID in the end of URL}"
+chat_id = ""
+
+# Defines the number of days in the past to analyze the user activity
+offset_days = 90
