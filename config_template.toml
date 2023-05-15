@@ -8,4 +8,7 @@ app_hash = ""
 chat_id = ""
 
 # Defines the number of days in the past to analyze the user activity
-offset_days = 90
+cutoff_days = 90
+
+# Ignore users with these usernames
+allowlist=["sm_zkg_bot"]

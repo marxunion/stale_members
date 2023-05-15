@@ -5,6 +5,7 @@ from telethon.tl.functions.messages import (
     GetPollVotesRequest,
     GetMessagesReactionsRequest,
 )
+from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantsAdmins, MessageMediaPoll
 from datetime import datetime, timedelta
 
@@ -13,12 +14,19 @@ config = None
 with open("config.toml", "rb") as f:
     config = tomllib.load(f)
 
-client = TelegramClient("stale_members", config["api_id"], config["api_hash"])
+chat_id = config["chat_id"]
+api_hash = config["api_hash"]
+api_id = config["api_id"]
+cutoff_days = config["cutoff_days"]
+allowlist = config["allowlist"]
+
+client = TelegramClient("stale_members", api_id, api_hash)
 client.start()
+
 
 async def get_poll_voters_ids(msg):
     if isinstance(msg.media, MessageMediaPoll):
-        votes = await client(GetPollVotesRequest(config["chat_id"], msg.id, limit=100))
+        votes = await client(GetPollVotesRequest(chat_id, msg.id, limit=100))
         return [user.id for user in votes.users]
     else:
         return []
@@ -32,7 +40,7 @@ async def get_message_authors_ids(msg):
 
 
 async def get_reaction_makers_ids(msg):
-    reactions = await client(GetMessagesReactionsRequest(config["chat_id"], [msg.id]))
+    reactions = await client(GetMessagesReactionsRequest(chat_id, [msg.id]))
     return [user.id for user in reactions.users]
 
 
@@ -61,12 +69,12 @@ def display(user):
 
 
 async def main():
-    days_ago = datetime.today() - timedelta(days=config["offset_days"])
+    cutoff_date = datetime.today() - timedelta(days=cutoff_days)
 
     [all_users, admins, messages] = await asyncio.gather(
-        client.get_participants(config["chat_id"]),
-        client.get_participants(config["chat_id"], filter=ChannelParticipantsAdmins),
-        client.get_messages(config["chat_id"], reverse=True, offset_date=days_ago, limit=None),
+        client.get_participants(chat_id),
+        client.get_participants(chat_id, filter=ChannelParticipantsAdmins),
+        client.get_messages(chat_id, reverse=True, offset_date=cutoff_date, limit=None),
     )
 
     print(f"Total number of participants: {len(all_users)}")
@@ -78,6 +86,20 @@ async def main():
     active_user_ids_nested = await asyncio.gather(*map(get_active_user_ids, messages))
     active_user_ids = [user_id for users in active_user_ids_nested for user_id in users]
     inactive_users = [user for user in normies if user.id not in active_user_ids]
+
+    # Filter out users who joined the chat after the cutoff date
+    inactive_participants = await asyncio.gather(
+        *map(
+            lambda user: client(GetParticipantRequest(chat_id, user.id)), inactive_users
+        )
+    )
+    inactive_participants = filter(
+        lambda participant: participant.participant.date.timestamp()
+        < cutoff_date.timestamp(),
+        inactive_participants,
+    )
+    inactive_users = [participant.users[0] for participant in inactive_participants]
+    inactive_users = [user for user in inactive_users if user.username not in allowlist]
 
     print(f"Among the regular participants, inactive users: {len(inactive_users)}")
 
