@@ -1,6 +1,4 @@
 import asyncio
-import tomllib
-from telethon import TelegramClient
 from telethon.tl.functions.messages import (
     GetPollVotesRequest,
     GetMessagesReactionsRequest,
@@ -8,19 +6,17 @@ from telethon.tl.functions.messages import (
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantsAdmins, MessageMediaPoll
 from datetime import datetime, timedelta
+from display import display
+from prelude import get_client, get_config
 
 # See config_template.toml for hints
-config = None
-with open("config.toml", "rb") as f:
-    config = tomllib.load(f)
+config = get_config()
 
 chat_id = config["chat_id"]
-api_hash = config["api_hash"]
-api_id = config["api_id"]
 cutoff_days = config["cutoff_days"]
 allowlist = config["allowlist"]
 
-client = TelegramClient("stale_members", api_id, api_hash)
+client = get_client(config)
 client.start()
 
 
@@ -57,18 +53,7 @@ async def get_active_user_ids(msg):
     return reaction_makers + poll_voters + message_authors
 
 
-def display(user):
-    str = user.first_name or ""
-    if user.last_name:
-        str += f" {user.last_name}"
-
-    if user.username:
-        str += f" [{user.username}]"
-
-    return str
-
-
-async def main():
+async def get_inactive_users():
     cutoff_date = datetime.today() - timedelta(days=cutoff_days)
 
     [all_users, admins, messages] = await asyncio.gather(
@@ -89,13 +74,10 @@ async def main():
 
     # Filter out users who joined the chat after the cutoff date
     inactive_participants = await asyncio.gather(
-        *map(
-            lambda user: client(GetParticipantRequest(chat_id, user.id)), inactive_users
-        )
+        *map(lambda user: client(GetParticipantRequest(chat_id, user.id)), inactive_users)
     )
     inactive_participants = filter(
-        lambda participant: participant.participant.date.timestamp()
-        < cutoff_date.timestamp(),
+        lambda participant: participant.participant.date.timestamp() < cutoff_date.timestamp(),
         inactive_participants,
     )
     inactive_users = [participant.users[0] for participant in inactive_participants]
@@ -107,4 +89,5 @@ async def main():
         print(idx + 1, display(user))
 
 
-asyncio.get_event_loop().run_until_complete(main())
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(get_inactive_users())

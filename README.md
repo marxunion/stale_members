@@ -1,15 +1,19 @@
 # Purpose
 
-This script analyzes the chat or group in Telegram and returns you a list of **recently inactive** chat members. By **recently inactive** we mean:
+In our organization we need to monitor inactive users. Some of those inactive users are admins which must be manually approached, others are the regular members of the chat.
+
+First scripy `inactives.py` analyzes the chat or group in Telegram and returns you a list of **recently inactive** chat members. By **recently inactive** we mean:
 1. no messages in the chat
 2. no reactions
 3. no votes in the polls
 4. user is not an admin
 in last X days (where X is configurable).
 
+Second script `admins.py` just returns you the list of the admin users for an investigation.
+
 # How it works
 
-The script uses `telethon` library to access the telegram API. It gets the members of the chat, excludes admins, gets last messages in the chat and checks excludes members who sent at least one message, voted on the polls or reacted on the messages with emojis.
+The scripts use `telethon` library to access the telegram API. It gets the members of the chat, excludes admins, gets last messages in the chat and checks excludes members who sent at least one message, voted on the polls or reacted on the messages with emojis.
 
 # Setup
 
@@ -49,11 +53,11 @@ For that you need to:
 If you used `pipenv` to install dependencies you can run next command:
 
 ```bash
-pipenv run python main.py
+pipenv run python inactives.py
 ```
 
 or if you installed the dependencies globally then just
 
 ```bash
-python main.py
+python inactives.py
 ```
