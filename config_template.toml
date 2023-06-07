@@ -11,8 +11,14 @@ chat_id = ""
 cutoff_days = 90
 
 # Ignore users with these usernames
-allowlist=["sm_zkg_bot"]
+allowlist = ["sm_zkg_bot"]
 
 [jira]
 username = "User.Name"
 password = "strongest-jira-password"
+
+# JIRA Hostname
+host = "https://myjira.org"
+
+# Ignore telegram users who passed the education but must stay in chat (they are new members of the clan)
+tg_allowlist = ["username"]

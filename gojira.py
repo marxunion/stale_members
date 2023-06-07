@@ -24,7 +24,7 @@ def mk_jql(usernames):
     return "project=RECRUT and " + " or ".join(subqueries)
 
 
-def display(user, issue):
+def display(config, user, issue):
     str = user.first_name or ""
     if user.last_name:
         str += f" {user.last_name}"
@@ -32,7 +32,7 @@ def display(user, issue):
     if user.username:
         str += f" [{user.username}]"
 
-    return f"{str} | {issue['key']} | "
+    return f"{str} | {config['jira']['host']}/browse/{issue['key']} | {status(issue)['name']}"
 
 
 async def main(client, config):
@@ -43,28 +43,37 @@ async def main(client, config):
     url = "https://task.marxunion.org/rest/api/2/search"
     res = requests.get(url=url, params={"jql": jql}, auth=auth)
     res = res.json()
-    completed_users = find_completed_candidates(tg_users, res["issues"])
+    completed_users = find_completed_candidates(config, tg_users, res["issues"])
 
     for (user, issue) in completed_users:
-        print(display(user, issue))
+        print(display(config, user, issue))
+
+
+def is_related_issue(tg_uname, issue):
+    issue_uname = issue["fields"]["customfield_10622"]
+    return issue_uname is not None and tg_uname in issue_uname
+
+
+def status(issue):
+    return issue["fields"]["status"]
+
 
 def find_candidate_issue(user, issues):
-    stripped_username = strip_username(user.username)
-    for issue in issues:
-        tg_username = issue["fields"]["customfield_10622"]
-        if tg_username is not None and stripped_username in tg_username:
-            return issue
-    return None
+    stripped_uname = strip_username(user.username)
+    return next((issue for issue in issues if is_related_issue(stripped_uname, issue)), None)
 
-def find_completed_candidates(tg_users, issues) -> list:
+
+def find_completed_candidates(config, tg_users, issues) -> list:
     completed = []
     for user in tg_users:
+        if user.username in config["jira"]["tg_allowlist"]:
+            continue
         recruit_issue = find_candidate_issue(user, issues)
         # if no ticket is found
         if recruit_issue is None:
             continue
-        # if ticket is done (closed, completed, finished - any green status)
-        if recruit_issue["fields"]["status"]["statusCategory"]["key"] != "done":
+        # if user still waits for classes then skip
+        if status(recruit_issue)["name"] == "Ждёт обучения":
             continue
         completed.append((user, recruit_issue))
     return completed
