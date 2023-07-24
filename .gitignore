@@ -1,4 +1,5 @@
 stale_members.session
+stale_members.session-journal
 .vscode
 .venv
 config.toml

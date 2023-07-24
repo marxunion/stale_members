@@ -21,15 +21,19 @@ client.start()
 
 
 async def get_poll_voters_ids(msg):
-    if isinstance(msg.media, MessageMediaPoll):
-        votes = await client(GetPollVotesRequest(chat_id, msg.id, limit=100))
-        return [user.id for user in votes.users]
-    else:
+    try:
+        if isinstance(msg.media, MessageMediaPoll):
+            votes = await client(GetPollVotesRequest(chat_id, msg.id, limit=100))
+            return [user.id for user in votes.users]
+        else:
+            return []
+    except:
+        print(f"WARINING: The user of this script did not put the vote on the poll: {msg.media.poll.question}")
         return []
 
 
 async def get_message_authors_ids(msg):
-    if msg.media is None and msg.from_id is not None:
+    if msg.from_id is not None:
         return [msg.from_id.user_id]
     else:
         return []
@@ -56,10 +60,13 @@ async def get_active_user_ids(msg):
 async def get_inactive_users():
     cutoff_date = datetime.today() - timedelta(days=cutoff_days)
 
-    [all_users, admins, messages] = await asyncio.gather(
+    [all_users, admins] = await asyncio.gather(
         client.get_participants(chat_id),
         client.get_participants(chat_id, filter=ChannelParticipantsAdmins),
-        client.get_messages(chat_id, reverse=True, offset_date=cutoff_date, limit=None),
+        # we cannot get all of the messages in parallel: it happens that there are a lot of messages
+        # and getting them all at once is a very long operation
+        # therefore we have to use client.iter_messages and handle every message separately (see below)
+        # client.get_messages(chat_id, reverse=True, offset_date=cutoff_date, limit=None),
     )
 
     print(f"Total number of participants: {len(all_users)}")
@@ -68,8 +75,20 @@ async def get_inactive_users():
     normies = [p for p in all_users if p.id not in (admin.id for admin in admins)]
     print(f"Regular participants: {len(normies)}")
 
-    active_user_ids_nested = await asyncio.gather(*map(get_active_user_ids, messages))
-    active_user_ids = [user_id for users in active_user_ids_nested for user_id in users]
+
+    active_user_ids = []
+    i = 0
+    async for msg in client.iter_messages(chat_id, reverse=True, offset_date=cutoff_date, limit=None):
+        if (i + 1) % 100 == 0:
+            print(f"handled {i + 1} messages")
+
+        user_ids = await get_active_user_ids(msg)
+
+        if len(user_ids) == 0:
+            print(f"No users involved into this message (event author was not found): {msg}")
+        active_user_ids.append(user_ids)
+        i += 1
+
     inactive_users = [user for user in normies if user.id not in active_user_ids]
 
     # Filter out users who joined the chat after the cutoff date
