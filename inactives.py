@@ -20,7 +20,7 @@ client = get_client(config)
 client.start()
 
 
-async def get_poll_voters_ids(msg):
+async def get_poll_votes(msg):
     try:
         if isinstance(msg.media, MessageMediaPoll):
             votes = await client(GetPollVotesRequest(chat_id, msg.id, limit=100))
@@ -32,26 +32,26 @@ async def get_poll_voters_ids(msg):
         return []
 
 
-async def get_message_authors_ids(msg):
+async def get_message_authors(msg):
     if msg.from_id is not None:
         return [msg.from_id.user_id]
     else:
         return []
 
 
-async def get_reaction_makers_ids(msg):
+async def get_reactions(msg):
     reactions = await client(GetMessagesReactionsRequest(chat_id, [msg.id]))
     return [user.id for user in reactions.users]
 
 
-async def get_active_user_ids(msg):
+async def get_active_interactions(msg):
     poll_voters = []
     message_authors = []
 
     [poll_voters, message_authors, reaction_makers] = await asyncio.gather(
-        get_poll_voters_ids(msg),
-        get_message_authors_ids(msg),
-        get_reaction_makers_ids(msg),
+        get_poll_votes(msg),
+        get_message_authors(msg),
+        get_reactions(msg),
     )
 
     return reaction_makers + poll_voters + message_authors
@@ -75,23 +75,27 @@ async def get_inactive_users():
     normies = [p for p in all_users if p.id not in (admin.id for admin in admins)]
     print(f"Regular participants: {len(normies)}")
 
-
+    # go through all of the messages
+    # collect interactions with the messages
+    # users who interacted with the chat (posted message, voted or reacted on the message) after the cutoff date are active
     active_user_ids = []
     i = 0
     async for msg in client.iter_messages(chat_id, reverse=True, offset_date=cutoff_date, limit=None):
         if (i + 1) % 100 == 0:
             print(f"handled {i + 1} messages")
-
-        user_ids = await get_active_user_ids(msg)
-
-        if len(user_ids) == 0:
-            print(f"No users involved into this message (event author was not found): {msg}")
-        active_user_ids.append(user_ids)
         i += 1
 
-    inactive_users = [user for user in normies if user.id not in active_user_ids]
+        user_ids = await get_active_interactions(msg)
+
+        if len(user_ids) == 0:
+            print(f"No users involved into this message (event author was not found): {msg.message}")
+        active_user_ids += user_ids
+
+    # all users which are not active or not in the allowlist are inactive
+    inactive_users = [user for user in normies if user.id not in active_user_ids and user.username not in allowlist]
 
     # Filter out users who joined the chat after the cutoff date
+    # because they have just joined and probably haven't had a chance to interact with the chat
     inactive_participants = await asyncio.gather(
         *map(lambda user: client(GetParticipantRequest(chat_id, user.id)), inactive_users)
     )
@@ -100,12 +104,11 @@ async def get_inactive_users():
         inactive_participants,
     )
     inactive_users = [participant.users[0] for participant in inactive_participants]
-    inactive_users = [user for user in inactive_users if user.username not in allowlist]
 
     print(f"Among the regular participants, inactive users: {len(inactive_users)}")
 
     for idx, user in enumerate(inactive_users):
-        print(idx + 1, display(user))
+        print(idx + 1, display(user), user.id)
 
 
 if __name__ == "__main__":
